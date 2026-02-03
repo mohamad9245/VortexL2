@@ -53,6 +53,7 @@ def show_banner(config: Config):
     # Get server IP
     server_ip = config.get_local_ip() or "Not configured"
     
+    # Print banner
     console.print(banner_text)
     
     # Contact info bar
@@ -72,7 +73,6 @@ def show_banner(config: Config):
         info_lines.append(f"[bold white]Iran IP:[/] [green]{config.ip_iran}[/]")
         info_lines.append(f"[bold white]Kharej IP:[/] [cyan]{config.ip_kharej}[/]")
     
-    console.print(banner_text)
     console.print(Panel(
         "\n".join(info_lines),
         title="[bold white]VortexL2 - L2TPv3 Tunnel Manager[/]",
