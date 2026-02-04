@@ -2,7 +2,7 @@
 
 **L2TPv3 Ethernet Tunnel Manager for Ubuntu/Debian**
 
-A modular, production-quality CLI tool for managing L2TPv3 tunnels and TCP port forwarding via socat.
+A modular, production-quality CLI tool for managing multiple L2TPv3 tunnels and TCP port forwarding via socat.
 
 ```
  __      __        _            _     ___  
@@ -16,11 +16,12 @@ A modular, production-quality CLI tool for managing L2TPv3 tunnels and TCP port 
 ## ✨ Features
 
 - 🔧 Interactive TUI management panel with Rich
-- 🌐 L2TPv3 Ethernet tunnel (encap ip mode)
-- 🔀 TCP port forwarding via socat (Iran side)
+- 🌐 **Multiple L2TPv3 tunnels** on a single server
+- 🔀 TCP port forwarding via socat
 - 🔄 Systemd integration for persistence
 - 📦 One-liner installation
 - 🛡️ Secure configuration with 0600 permissions
+- 🎯 Fully configurable tunnel IDs
 
 ## 📦 Quick Install
 
@@ -36,57 +37,73 @@ bash <(curl -Ls https://raw.githubusercontent.com/iliya-Developer/VortexL2/main/
 sudo vortexl2
 ```
 
-### 2. Select Your Role
+### 2. Create Tunnels (Manage Tunnels → Add New Tunnel)
 
-- **IRAN**: The server that receives connections and forwards ports
-- **KHAREJ**: The remote tunnel endpoint (e.g., server outside Iran)
+Each tunnel needs:
+- **Tunnel Name**: A unique identifier (e.g., `server1`, `kharej-hetzner`)
+- **Local IP**: This server's public IP
+- **Remote IP**: The other server's public IP
+- **Interface IP**: Tunnel interface IP (e.g., `10.30.30.1/24`)
+- **Tunnel IDs**: Unique IDs for the L2TP connection
 
-### 3. Configure Endpoints
+### 3. Configure Both Sides
 
-Enter the public IPs for both servers when prompted:
-- Iran Server Public IP
-- Kharej Server Public IP
+Both servers need matching tunnel configurations with swapped values:
 
-### 4. Create Tunnel
+| Parameter | Server A | Server B |
+|-----------|----------|----------|
+| Local IP | 1.2.3.4 | 5.6.7.8 |
+| Remote IP | 5.6.7.8 | 1.2.3.4 |
+| Interface IP | 10.30.30.1/24 | 10.30.30.2/24 |
+| Tunnel ID | 1000 | 2000 |
+| Peer Tunnel ID | 2000 | 1000 |
+| Session ID | 10 | 20 |
+| Peer Session ID | 20 | 10 |
 
-Select "Create/Start Tunnel" from the menu.
+### 4. Start Tunnel
 
-### 5. Add Port Forwards (Iran side only)
+Select "Start Current Tunnel" from the menu on both servers.
+
+### 5. Add Port Forwards
 
 Select "Port Forwards" and add ports like: `443,80,2053`
 
 ## 🎯 Usage Examples
 
-### Iran Side Setup
+### Server A Setup
 
 ```bash
-# Open panel
 sudo vortexl2
 
 # 1. Install prerequisites (option 1)
-# 2. Configure endpoints (option 2)
-#    - Select role: IRAN
-#    - Enter Iran public IP: YOUR_IRAN_IP
-#    - Enter Kharej public IP: YOUR_KHAREJ_IP
-#    - Iran l2tpeth0 IP: 10.30.30.1/30 (default)
-#    - Remote Forward IP: 10.30.30.2 (default)
-# 3. Create tunnel (option 3)
-# 4. Add port forwards (option 5 → 1)
-#    - Enter ports: 443,80,2053
+# 2. Manage Tunnels (option 2) → Add New Tunnel
+#    - Name: tunnel1
+# 3. Configure Current Tunnel (option 3)
+#    - Local IP: 1.2.3.4
+#    - Remote IP: 5.6.7.8
+#    - Interface IP: 10.30.30.1/24
+#    - Remote Forward Target: 10.30.30.2
+#    - Tunnel ID: 1000
+#    - Peer Tunnel ID: 2000
+#    - Session ID: 10
+#    - Peer Session ID: 20
+# 4. Start Tunnel (option 4)
+# 5. Port Forwards (option 6) → Add ports
 ```
 
-### kharej Side Setup
+### Server B Setup
 
 ```bash
-# Open panel
 sudo vortexl2
 
-# 1. Install prerequisites (option 1)
-# 2. Configure endpoints (option 2)
-#    - Select role: KHAREJ
-#    - Enter Iran public IP: IRAN_SERVER_IP
-#    - Enter Kharej public IP: YOUR_KHAREJ_IP
-# 3. Create tunnel (option 3)
+# Same steps but with swapped values:
+#    - Local IP: 5.6.7.8
+#    - Remote IP: 1.2.3.4
+#    - Interface IP: 10.30.30.2/24
+#    - Tunnel ID: 2000
+#    - Peer Tunnel ID: 1000
+#    - Session ID: 20
+#    - Peer Session ID: 10
 ```
 
 ## 📋 Commands
@@ -94,6 +111,7 @@ sudo vortexl2
 | Command | Description |
 |---------|-------------|
 | `sudo vortexl2` | Open management panel |
+| `sudo vortexl2 apply` | Apply all tunnels (for systemd boot) |
 | `sudo vortexl2 --version` | Show version |
 
 ## 🔍 Troubleshooting
@@ -107,7 +125,7 @@ ip l2tp show tunnel
 # Show L2TP sessions
 ip l2tp show session
 
-# Check interface
+# Check interface (l2tpeth0, l2tpeth1, etc.)
 ip addr show l2tpeth0
 ```
 
@@ -134,13 +152,13 @@ journalctl -u vortexl2-forward@443 -f
 ### Common Issues
 
 **❌ Tunnel not working**
-1. Ensure both sides have configured with correct IPs
+1. Ensure both sides have matching tunnel IDs (swapped peer values)
 2. Check firewall allows IP protocol 115 (L2TPv3)
 3. Verify kernel modules are loaded: `lsmod | grep l2tp`
 
 **❌ Port forward not working**
 1. Check socat is installed: `which socat`
-2. Verify tunnel is up: `ping 10.30.30.2` (from Iran side)
+2. Verify tunnel is up: `ping 10.30.30.2` (from one side)
 3. Check service status: `systemctl status vortexl2-forward@PORT`
 
 **❌ Interface l2tpeth0 not found**
@@ -150,15 +168,20 @@ journalctl -u vortexl2-forward@443 -f
 
 ## 🔧 Configuration
 
-Configuration is stored in `/etc/vortexl2/config.yaml`:
+Tunnels are stored in `/etc/vortexl2/tunnels/`:
 
 ```yaml
-version: "1.0.0"
-role: "IRAN"
-ip_iran: "1.2.3.4"
-ip_kharej: "5.6.7.8"
-iran_iface_ip: "10.30.30.1/30"
+# /etc/vortexl2/tunnels/tunnel1.yaml
+name: tunnel1
+local_ip: "1.2.3.4"
+remote_ip: "5.6.7.8"
+interface_ip: "10.30.30.1/24"
 remote_forward_ip: "10.30.30.2"
+tunnel_id: 1000
+peer_tunnel_id: 2000
+session_id: 10
+peer_session_id: 20
+interface_index: 0
 forwarded_ports:
   - 443
   - 80
@@ -167,10 +190,27 @@ forwarded_ports:
 
 ## 🏗️ Architecture
 
+### Multiple Tunnels
+
 ```
                     ┌─────────────────┐
-                    │   IRAN Server   │
+                    │   Server A      │
                     │   1.2.3.4       │
+                    │                 │
+                    │  l2tpeth0 ──────┼──── L2TPv3 ──── Server B (5.6.7.8)
+                    │  10.30.30.1     │
+                    │                 │
+                    │  l2tpeth1 ──────┼──── L2TPv3 ──── Server C (9.10.11.12)
+                    │  10.40.40.1     │
+                    │                 │
+                    └─────────────────┘
+```
+
+### Port Forwarding
+
+```
+                    ┌─────────────────┐
+                    │   Server A      │
                     │                 │
                     │  ┌───────────┐  │
  Users ──────────►  │  │  socat    │  │
@@ -192,7 +232,7 @@ forwarded_ports:
                     │  │10.30.30.2 │  │
                     │  └───────────┘  │
                     │                 │
-                    │ KHAREJ Server  │
+                    │   Server B      │
                     │   5.6.7.8       │
                     └─────────────────┘
 ```
@@ -204,7 +244,7 @@ VortexL2/
 ├── vortexl2/
 │   ├── __init__.py     # Package info
 │   ├── main.py         # CLI entry point
-│   ├── config.py       # Configuration management
+│   ├── config.py       # Multi-tunnel configuration
 │   ├── tunnel.py       # L2TPv3 tunnel operations
 │   ├── forward.py      # Port forward management
 │   └── ui.py           # Rich TUI interface
@@ -252,8 +292,8 @@ MIT License
 
 ## 👤 Author
 
-VortexL2 Team
+VortexL2 Team - Telegram: @iliyadevsh
 
 ---
 
-**Version 1.0.0**
+**Version 1.1.0** - Multi-tunnel support

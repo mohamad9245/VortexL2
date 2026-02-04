@@ -10,9 +10,6 @@ from typing import Optional, Dict, Tuple, List
 from dataclasses import dataclass
 
 
-INTERFACE_NAME = "l2tpeth0"
-
-
 @dataclass
 class CommandResult:
     """Result of a shell command execution."""
@@ -55,10 +52,21 @@ def run_command(cmd: str, check: bool = False) -> CommandResult:
 
 
 class TunnelManager:
-    """Manages L2TPv3 tunnel and session operations."""
+    """Manages L2TPv3 tunnel and session operations for a specific tunnel config."""
     
     def __init__(self, config):
+        """
+        Initialize with a TunnelConfig instance.
+        
+        Args:
+            config: TunnelConfig instance for the tunnel to manage
+        """
         self.config = config
+    
+    @property
+    def interface_name(self) -> str:
+        """Get the interface name for this tunnel."""
+        return self.config.interface_name
     
     def install_prerequisites(self) -> Tuple[bool, str]:
         """Install required packages and load kernel modules."""
@@ -134,7 +142,7 @@ class TunnelManager:
     def create_tunnel(self) -> Tuple[bool, str]:
         """Create L2TP tunnel based on configuration."""
         if not self.config.local_ip or not self.config.remote_ip:
-            return False, "IPs not configured. Please configure endpoints first."
+            return False, "IPs not configured. Please configure tunnel first."
         
         ids = self.config.get_tunnel_ids()
         
@@ -180,34 +188,34 @@ class TunnelManager:
         return True, f"Session {ids['session_id']} created successfully"
     
     def bring_up_interface(self) -> Tuple[bool, str]:
-        """Bring up the l2tpeth0 interface."""
+        """Bring up the tunnel interface."""
         # Wait a moment for interface to appear
         import time
         time.sleep(0.5)
         
-        result = run_command(f"ip link set {INTERFACE_NAME} up")
+        result = run_command(f"ip link set {self.interface_name} up")
         if not result.success:
             return False, f"Failed to bring up interface: {result.stderr}"
         
-        return True, f"Interface {INTERFACE_NAME} is up"
+        return True, f"Interface {self.interface_name} is up"
     
     def assign_ip(self) -> Tuple[bool, str]:
-        """Assign IP address to l2tpeth0 interface."""
+        """Assign IP address to tunnel interface."""
         ip_cidr = self.config.interface_ip
         
         # Check if IP already assigned
-        result = run_command(f"ip addr show {INTERFACE_NAME}")
+        result = run_command(f"ip addr show {self.interface_name}")
         if ip_cidr.split('/')[0] in result.stdout:
             return True, f"IP {ip_cidr} already assigned"
         
-        result = run_command(f"ip addr add {ip_cidr} dev {INTERFACE_NAME}")
+        result = run_command(f"ip addr add {ip_cidr} dev {self.interface_name}")
         if not result.success:
             # Check if it's because address exists
             if "RTNETLINK answers: File exists" in result.stderr:
                 return True, f"IP {ip_cidr} already assigned"
             return False, f"Failed to assign IP: {result.stderr}"
         
-        return True, f"IP {ip_cidr} assigned to {INTERFACE_NAME}"
+        return True, f"IP {ip_cidr} assigned to {self.interface_name}"
     
     def delete_session(self) -> Tuple[bool, str]:
         """Delete L2TP session."""
@@ -246,6 +254,9 @@ class TunnelManager:
     def full_setup(self) -> Tuple[bool, str]:
         """Perform full tunnel setup: create tunnel, session, bring up interface, assign IP."""
         steps = []
+        tunnel_name = self.config.name
+        
+        steps.append(f"=== Setting up tunnel: {tunnel_name} ===")
         
         # Create tunnel
         success, msg = self.create_tunnel()
@@ -271,12 +282,15 @@ class TunnelManager:
         if not success:
             return False, "\n".join(steps)
         
-        steps.append("\n✓ Tunnel setup complete!")
+        steps.append(f"\n✓ Tunnel '{tunnel_name}' setup complete!")
         return True, "\n".join(steps)
     
     def full_teardown(self) -> Tuple[bool, str]:
         """Perform full tunnel teardown: delete session and tunnel."""
         steps = []
+        tunnel_name = self.config.name
+        
+        steps.append(f"=== Tearing down tunnel: {tunnel_name} ===")
         
         # Delete session
         success, msg = self.delete_session()
@@ -286,16 +300,17 @@ class TunnelManager:
         success, msg = self.delete_tunnel()
         steps.append(f"Delete tunnel: {msg}")
         
-        steps.append("\n✓ Tunnel teardown complete!")
+        steps.append(f"\n✓ Tunnel '{tunnel_name}' teardown complete!")
         return True, "\n".join(steps)
     
     def get_status(self) -> Dict[str, any]:
         """Get comprehensive tunnel status."""
         status = {
-            "tunnel_name": self.config.tunnel_name,
+            "tunnel_name": self.config.name,
             "configured": self.config.is_configured(),
             "local_ip": self.config.local_ip,
             "remote_ip": self.config.remote_ip,
+            "interface_name": self.interface_name,
             "tunnel_exists": False,
             "session_exists": False,
             "interface_up": False,
@@ -316,7 +331,7 @@ class TunnelManager:
         status["session_exists"] = self.check_session_exists()
         
         # Check interface
-        result = run_command(f"ip addr show {INTERFACE_NAME} 2>/dev/null")
+        result = run_command(f"ip addr show {self.interface_name} 2>/dev/null")
         if result.success and result.stdout:
             status["interface_info"] = result.stdout
             status["interface_up"] = "UP" in result.stdout

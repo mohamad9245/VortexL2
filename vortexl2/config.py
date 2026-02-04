@@ -1,8 +1,8 @@
 """
 VortexL2 Configuration Management
 
-Handles loading/saving configuration from /etc/vortexl2/config.yaml
-with secure file permissions.
+Handles loading/saving multiple tunnel configurations from /etc/vortexl2/tunnels/
+Each tunnel has its own YAML config file.
 """
 
 import os
@@ -12,70 +12,81 @@ from typing import Optional, List, Dict, Any
 
 
 CONFIG_DIR = Path("/etc/vortexl2")
-CONFIG_FILE = CONFIG_DIR / "config.yaml"
+TUNNELS_DIR = CONFIG_DIR / "tunnels"
 
 
-class Config:
-    """Configuration manager for VortexL2."""
+class TunnelConfig:
+    """Configuration for a single tunnel."""
     
-    # Default values
+    # Default values for new tunnels
     DEFAULTS = {
-        "version": "1.0.0",
-        "tunnel_name": "tunnel1",
+        "name": "tunnel1",
         "local_ip": None,
         "remote_ip": None,
         "interface_ip": "10.30.30.1/24",
         "remote_forward_ip": "10.30.30.2",
-        "forwarded_ports": [],
-        # Tunnel IDs with defaults
         "tunnel_id": 1000,
         "peer_tunnel_id": 2000,
         "session_id": 10,
         "peer_session_id": 20,
+        "interface_index": 0,
+        "forwarded_ports": [],
     }
     
-    def __init__(self):
+    def __init__(self, name: str, config_data: Dict[str, Any] = None):
+        self._name = name
         self._config: Dict[str, Any] = {}
-        self._load()
-    
-    def _load(self) -> None:
-        """Load configuration from file or create defaults."""
-        if CONFIG_FILE.exists():
-            try:
-                with open(CONFIG_FILE, 'r') as f:
-                    self._config = yaml.safe_load(f) or {}
-            except Exception:
-                self._config = {}
+        self._file_path = TUNNELS_DIR / f"{name}.yaml"
+        
+        if config_data:
+            self._config = config_data
+        else:
+            self._load()
         
         # Apply defaults for missing keys
         for key, default in self.DEFAULTS.items():
             if key not in self._config:
                 self._config[key] = default
-
+        
+        # Ensure name matches
+        self._config["name"] = name
+    
+    def _load(self) -> None:
+        """Load configuration from file."""
+        if self._file_path.exists():
+            try:
+                with open(self._file_path, 'r') as f:
+                    self._config = yaml.safe_load(f) or {}
+            except Exception:
+                self._config = {}
     
     def _save(self) -> None:
-        """Save configuration to file with secure permissions."""
-        # Create config directory if not exists
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        """Save configuration to file."""
+        TUNNELS_DIR.mkdir(parents=True, exist_ok=True)
         
-        # Write config
-        with open(CONFIG_FILE, 'w') as f:
+        with open(self._file_path, 'w') as f:
             yaml.dump(self._config, f, default_flow_style=False)
         
-        # Set secure permissions (owner read/write only)
-        os.chmod(CONFIG_FILE, 0o600)
+        os.chmod(self._file_path, 0o600)
     
     def save(self) -> None:
         """Public method to save configuration."""
         self._save()
     
-    @property
-    def tunnel_name(self) -> str:
-        return self._config.get("tunnel_name", "tunnel1")
+    def delete(self) -> bool:
+        """Delete this tunnel's config file."""
+        if self._file_path.exists():
+            self._file_path.unlink()
+            return True
+        return False
     
-    @tunnel_name.setter
-    def tunnel_name(self, value: str) -> None:
-        self._config["tunnel_name"] = value
+    @property
+    def name(self) -> str:
+        return self._config.get("name", self._name)
+    
+    @name.setter
+    def name(self, value: str) -> None:
+        self._config["name"] = value
         self._save()
     
     @property
@@ -115,15 +126,6 @@ class Config:
         self._save()
     
     @property
-    def forwarded_ports(self) -> List[int]:
-        return self._config.get("forwarded_ports", [])
-    
-    @forwarded_ports.setter
-    def forwarded_ports(self, value: List[int]) -> None:
-        self._config["forwarded_ports"] = value
-        self._save()
-    
-    @property
     def tunnel_id(self) -> int:
         return self._config.get("tunnel_id", 1000)
     
@@ -159,6 +161,29 @@ class Config:
         self._config["peer_session_id"] = value
         self._save()
     
+    @property
+    def interface_index(self) -> int:
+        return self._config.get("interface_index", 0)
+    
+    @interface_index.setter
+    def interface_index(self, value: int) -> None:
+        self._config["interface_index"] = value
+        self._save()
+    
+    @property
+    def interface_name(self) -> str:
+        """Get the interface name for this tunnel (l2tpeth0, l2tpeth1, etc.)"""
+        return f"l2tpeth{self.interface_index}"
+    
+    @property
+    def forwarded_ports(self) -> List[int]:
+        return self._config.get("forwarded_ports", [])
+    
+    @forwarded_ports.setter
+    def forwarded_ports(self, value: List[int]) -> None:
+        self._config["forwarded_ports"] = value
+        self._save()
+    
     def get_tunnel_ids(self) -> Dict[str, int]:
         """Get all tunnel IDs as a dictionary."""
         return {
@@ -182,20 +207,98 @@ class Config:
             ports.remove(port)
             self.forwarded_ports = ports
     
-    def clear_all(self) -> None:
-        """Clear all configuration values (used when deleting tunnel)."""
-        self._config["local_ip"] = None
-        self._config["remote_ip"] = None
-        self._config["forwarded_ports"] = []
-        self._save()
-    
     def is_configured(self) -> bool:
         """Check if basic configuration is complete."""
-        return bool(
-            self.local_ip and 
-            self.remote_ip
-        )
+        return bool(self.local_ip and self.remote_ip)
     
     def to_dict(self) -> Dict[str, Any]:
         """Return configuration as dictionary."""
         return self._config.copy()
+
+
+class ConfigManager:
+    """Manages multiple tunnel configurations."""
+    
+    def __init__(self):
+        self._ensure_dirs()
+    
+    def _ensure_dirs(self) -> None:
+        """Ensure config directories exist."""
+        TUNNELS_DIR.mkdir(parents=True, exist_ok=True)
+    
+    def list_tunnels(self) -> List[str]:
+        """List all configured tunnel names."""
+        if not TUNNELS_DIR.exists():
+            return []
+        
+        tunnels = []
+        for f in TUNNELS_DIR.glob("*.yaml"):
+            tunnels.append(f.stem)  # filename without extension
+        return sorted(tunnels)
+    
+    def get_tunnel(self, name: str) -> Optional[TunnelConfig]:
+        """Get a tunnel config by name."""
+        file_path = TUNNELS_DIR / f"{name}.yaml"
+        if file_path.exists():
+            return TunnelConfig(name)
+        return None
+    
+    def get_all_tunnels(self) -> List[TunnelConfig]:
+        """Get all tunnel configurations."""
+        return [TunnelConfig(name) for name in self.list_tunnels()]
+    
+    def create_tunnel(self, name: str) -> TunnelConfig:
+        """Create a new tunnel with unique interface index."""
+        # Find next available interface index
+        used_indices = set()
+        for tunnel in self.get_all_tunnels():
+            used_indices.add(tunnel.interface_index)
+        
+        # Find first available index
+        new_index = 0
+        while new_index in used_indices:
+            new_index += 1
+        
+        # Create new tunnel config
+        tunnel = TunnelConfig(name)
+        tunnel._config["interface_index"] = new_index
+        tunnel._config["name"] = name
+        
+        # Set unique default tunnel IDs based on index
+        # This helps avoid ID conflicts between tunnels
+        base_tunnel_id = 1000 + (new_index * 100)
+        tunnel._config["tunnel_id"] = base_tunnel_id
+        tunnel._config["peer_tunnel_id"] = base_tunnel_id + 1000
+        tunnel._config["session_id"] = 10 + new_index
+        tunnel._config["peer_session_id"] = 20 + new_index
+        
+        tunnel.save()
+        return tunnel
+    
+    def delete_tunnel(self, name: str) -> bool:
+        """Delete a tunnel configuration."""
+        tunnel = self.get_tunnel(name)
+        if tunnel:
+            return tunnel.delete()
+        return False
+    
+    def tunnel_exists(self, name: str) -> bool:
+        """Check if a tunnel with this name exists."""
+        return (TUNNELS_DIR / f"{name}.yaml").exists()
+
+
+# Backward compatibility - single Config class that wraps first tunnel
+class Config(TunnelConfig):
+    """Backward compatible Config class - wraps first available tunnel."""
+    
+    def __init__(self):
+        manager = ConfigManager()
+        tunnels = manager.list_tunnels()
+        
+        if tunnels:
+            # Load first tunnel
+            super().__init__(tunnels[0])
+        else:
+            # Create default tunnel
+            super().__init__("tunnel1")
+            self.save()

@@ -6,7 +6,7 @@ Rich-based TUI with ASCII banner and menu system.
 
 import os
 import sys
-from typing import Optional, Callable
+from typing import Optional, List
 
 try:
     from rich.console import Console
@@ -20,7 +20,7 @@ except ImportError:
     sys.exit(1)
 
 from . import __version__
-from .config import Config
+from .config import TunnelConfig, ConfigManager
 
 
 console = Console()
@@ -41,7 +41,7 @@ def clear_screen():
     os.system('clear' if os.name != 'nt' else 'cls')
 
 
-def show_banner(config: Config):
+def show_banner(current_tunnel: TunnelConfig = None):
     """Display the ASCII banner with system info."""
     clear_screen()
     
@@ -57,16 +57,22 @@ def show_banner(config: Config):
         box=box.ROUNDED
     ))
     
-    # Server info
-    tunnel_name = config.tunnel_name or "Not set"
-    local_ip = config.local_ip or "Not configured"
-    remote_ip = config.remote_ip or "Not configured"
-    
-    info_lines = [
-        f"[bold white]Tunnel Name:[/] [magenta]{tunnel_name}[/]",
-        f"[bold white]Local IP:[/] [green]{local_ip}[/]",
-        f"[bold white]Remote IP:[/] [cyan]{remote_ip}[/]",
-    ]
+    # Tunnel info
+    if current_tunnel:
+        tunnel_name = current_tunnel.name
+        local_ip = current_tunnel.local_ip or "Not configured"
+        remote_ip = current_tunnel.remote_ip or "Not configured"
+        interface = current_tunnel.interface_name
+        
+        info_lines = [
+            f"[bold white]Active Tunnel:[/] [magenta]{tunnel_name}[/]",
+            f"[bold white]Local IP:[/] [green]{local_ip}[/]  →  [bold white]Remote IP:[/] [cyan]{remote_ip}[/]",
+            f"[bold white]Interface:[/] [yellow]{interface}[/]",
+        ]
+    else:
+        info_lines = [
+            "[yellow]No tunnel selected. Use 'Manage Tunnels' to create or select one.[/]"
+        ]
     
     console.print(Panel(
         "\n".join(info_lines),
@@ -81,12 +87,13 @@ def show_main_menu() -> str:
     """Display main menu and get user choice."""
     menu_items = [
         ("1", "Install/Verify Prerequisites"),
-        ("2", "Configure Tunnel"),
-        ("3", "Create/Start Tunnel"),
-        ("4", "Stop/Delete Tunnel"),
-        ("5", "Port Forwards"),
-        ("6", "Status/Diagnostics"),
-        ("7", "View Logs"),
+        ("2", "Manage Tunnels"),
+        ("3", "Configure Current Tunnel"),
+        ("4", "Start Current Tunnel"),
+        ("5", "Stop Current Tunnel"),
+        ("6", "Port Forwards"),
+        ("7", "Status/Diagnostics"),
+        ("8", "View Logs"),
         ("0", "Exit"),
     ]
     
@@ -98,6 +105,28 @@ def show_main_menu() -> str:
         table.add_row(f"[{opt}]", desc)
     
     console.print(Panel(table, title="[bold white]Main Menu[/]", border_style="blue"))
+    
+    return Prompt.ask("\n[bold cyan]Select option[/]", default="0")
+
+
+def show_tunnel_menu() -> str:
+    """Display tunnel management menu."""
+    menu_items = [
+        ("1", "List All Tunnels"),
+        ("2", "Add New Tunnel"),
+        ("3", "Select Tunnel"),
+        ("4", "Delete Tunnel"),
+        ("0", "Back to Main Menu"),
+    ]
+    
+    table = Table(show_header=False, box=box.SIMPLE, padding=(0, 2))
+    table.add_column("Option", style="bold cyan", width=4)
+    table.add_column("Description", style="white")
+    
+    for opt, desc in menu_items:
+        table.add_row(f"[{opt}]", desc)
+    
+    console.print(Panel(table, title="[bold white]Tunnel Management[/]", border_style="magenta"))
     
     return Prompt.ask("\n[bold cyan]Select option[/]", default="0")
 
@@ -126,17 +155,85 @@ def show_forwards_menu() -> str:
     return Prompt.ask("\n[bold cyan]Select option[/]", default="0")
 
 
-def prompt_endpoints(config: Config) -> bool:
-    """Prompt user for tunnel configuration."""
-    console.print("\n[bold white]Configure Tunnel[/]")
-    console.print("[dim]Enter tunnel configuration values. Press Enter to use defaults.[/]\n")
+def show_tunnel_list(manager: ConfigManager, current_name: str = None):
+    """Display list of all configured tunnels."""
+    tunnels = manager.get_all_tunnels()
     
-    # Tunnel Name
-    tunnel_name = Prompt.ask(
-        "[bold magenta]Tunnel Name[/]",
-        default=config.tunnel_name
-    )
-    config.tunnel_name = tunnel_name
+    if not tunnels:
+        console.print("[yellow]No tunnels configured. Create one first.[/]")
+        return
+    
+    table = Table(title="Configured Tunnels", box=box.ROUNDED)
+    table.add_column("#", style="dim", width=3)
+    table.add_column("Name", style="magenta")
+    table.add_column("Local IP", style="green")
+    table.add_column("Remote IP", style="cyan")
+    table.add_column("Interface", style="yellow")
+    table.add_column("Tunnel ID", style="white")
+    table.add_column("Status", style="white")
+    
+    for i, tunnel in enumerate(tunnels, 1):
+        is_current = tunnel.name == current_name
+        name_display = f"[bold]{tunnel.name}[/] ★" if is_current else tunnel.name
+        configured = "[green]Ready[/]" if tunnel.is_configured() else "[red]Incomplete[/]"
+        
+        table.add_row(
+            str(i),
+            name_display,
+            tunnel.local_ip or "-",
+            tunnel.remote_ip or "-",
+            tunnel.interface_name,
+            str(tunnel.tunnel_id),
+            configured
+        )
+    
+    console.print(table)
+
+
+def prompt_tunnel_name() -> Optional[str]:
+    """Prompt for new tunnel name."""
+    console.print("\n[dim]Enter a unique name for the tunnel (alphanumeric and dashes only)[/]")
+    name = Prompt.ask("[bold magenta]Tunnel Name[/]", default="tunnel1")
+    
+    # Sanitize name
+    name = "".join(c if c.isalnum() or c == "-" else "-" for c in name.lower())
+    return name if name else None
+
+
+def prompt_select_tunnel(manager: ConfigManager) -> Optional[str]:
+    """Prompt user to select a tunnel from list."""
+    tunnels = manager.list_tunnels()
+    
+    if not tunnels:
+        console.print("[yellow]No tunnels available.[/]")
+        return None
+    
+    console.print("\n[bold white]Available Tunnels:[/]")
+    for i, name in enumerate(tunnels, 1):
+        console.print(f"  [bold cyan][{i}][/] {name}")
+    console.print(f"  [bold cyan][0][/] Cancel")
+    
+    choice = Prompt.ask("\n[bold cyan]Select tunnel[/]", default="0")
+    
+    try:
+        idx = int(choice)
+        if idx == 0:
+            return None
+        if 1 <= idx <= len(tunnels):
+            return tunnels[idx - 1]
+    except ValueError:
+        # Maybe they typed the name directly
+        if choice in tunnels:
+            return choice
+    
+    console.print("[red]Invalid selection[/]")
+    return None
+
+
+def prompt_tunnel_config(config: TunnelConfig) -> bool:
+    """Prompt user for tunnel configuration."""
+    console.print(f"\n[bold white]Configure Tunnel: {config.name}[/]")
+    console.print("[dim]Enter configuration values. Press Enter to use defaults.[/]\n")
     
     # Local IP
     default_local = config.local_ip or ""
@@ -161,7 +258,7 @@ def prompt_endpoints(config: Config) -> bool:
     config.remote_ip = remote_ip
     
     # Interface IP
-    console.print("\n[dim]Configure tunnel interface IP (for l2tpeth0)[/]")
+    console.print(f"\n[dim]Configure tunnel interface IP (for {config.interface_name})[/]")
     interface_ip = Prompt.ask(
         "[bold yellow]Interface IP (CIDR)[/]",
         default=config.interface_ip
@@ -246,6 +343,7 @@ def show_status(status_data: dict):
     table.add_row("Configured", "Yes" if status_data.get("configured") else "No")
     table.add_row("Local IP", status_data.get("local_ip") or "Not set")
     table.add_row("Remote IP", status_data.get("remote_ip") or "Not set")
+    table.add_row("Interface", status_data.get("interface_name") or "l2tpeth0")
     table.add_row("Tunnel Exists", "[green]Yes[/]" if status_data.get("tunnel_exists") else "[red]No[/]")
     table.add_row("Session Exists", "[green]Yes[/]" if status_data.get("session_exists") else "[red]No[/]")
     table.add_row("Interface Up", "[green]Yes[/]" if status_data.get("interface_up") else "[red]No[/]")

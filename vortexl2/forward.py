@@ -85,9 +85,6 @@ class ForwardManager:
     
     def create_forward(self, port: int) -> Tuple[bool, str]:
         """Create and start a port forward service."""
-        if self.config.role != "IRAN":
-            return False, "Port forwarding is only available on IRAN side"
-        
         # Ensure template exists
         if not self._get_template_path().exists():
             success, msg = self.install_template()
