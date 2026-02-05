@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from vortexl2 import __version__
 from vortexl2.config import TunnelConfig, ConfigManager, GlobalConfig
 from vortexl2.tunnel import TunnelManager
-from vortexl2.forward import get_forward_manager, get_forward_mode, set_forward_mode
+from vortexl2.forward import get_forward_manager, get_forward_mode, set_forward_mode, ForwardManager
 from vortexl2 import ui
 
 
