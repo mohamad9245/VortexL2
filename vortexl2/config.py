@@ -294,4 +294,78 @@ class ConfigManager:
     def tunnel_exists(self, name: str) -> bool:
         """Check if a tunnel with this name exists."""
         return (TUNNELS_DIR / f"{name}.yaml").exists()
+    
+    def get_used_values(self, exclude_tunnel: str = None) -> Dict[str, set]:
+        """
+        Get all values currently in use by existing tunnels.
+        
+        Args:
+            exclude_tunnel: Tunnel name to exclude from the check (for editing existing tunnel)
+        
+        Returns:
+            Dictionary with sets of used values for each field
+        """
+        used = {
+            "tunnel_ids": set(),
+            "peer_tunnel_ids": set(),
+            "session_ids": set(),
+            "peer_session_ids": set(),
+            "interface_ips": set(),
+            "local_ips": set(),
+            "remote_ips": set(),
+        }
+        
+        for tunnel in self.get_all_tunnels():
+            if exclude_tunnel and tunnel.name == exclude_tunnel:
+                continue
+            
+            used["tunnel_ids"].add(tunnel.tunnel_id)
+            used["peer_tunnel_ids"].add(tunnel.peer_tunnel_id)
+            used["session_ids"].add(tunnel.session_id)
+            used["peer_session_ids"].add(tunnel.peer_session_id)
+            
+            if tunnel.interface_ip:
+                # Store without CIDR for comparison
+                ip_only = tunnel.interface_ip.split('/')[0]
+                used["interface_ips"].add(ip_only)
+            
+            if tunnel.local_ip:
+                used["local_ips"].add(tunnel.local_ip)
+            if tunnel.remote_ip:
+                used["remote_ips"].add(tunnel.remote_ip)
+        
+        return used
+    
+    def is_value_duplicate(self, field: str, value, exclude_tunnel: str = None) -> bool:
+        """
+        Check if a value is already in use by another tunnel.
+        
+        Args:
+            field: Field name (tunnel_id, session_id, interface_ip, etc.)
+            value: Value to check
+            exclude_tunnel: Tunnel name to exclude from the check
+        
+        Returns:
+            True if value is duplicate, False otherwise
+        """
+        used = self.get_used_values(exclude_tunnel)
+        
+        field_map = {
+            "tunnel_id": "tunnel_ids",
+            "peer_tunnel_id": "peer_tunnel_ids",
+            "session_id": "session_ids",
+            "peer_session_id": "peer_session_ids",
+            "interface_ip": "interface_ips",
+            "local_ip": "local_ips",
+            "remote_ip": "remote_ips",
+        }
+        
+        if field not in field_map:
+            return False
+        
+        # For interface_ip, strip CIDR notation
+        if field == "interface_ip" and isinstance(value, str):
+            value = value.split('/')[0]
+        
+        return value in used[field_map[field]]
 

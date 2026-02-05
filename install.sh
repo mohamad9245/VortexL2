@@ -131,8 +131,15 @@ chmod 700 "$CONFIG_DIR"
 # Reload systemd
 systemctl daemon-reload
 
-# Enable tunnel service (but don't start - needs configuration first)
+# Enable tunnel service
 systemctl enable vortexl2-tunnel.service 2>/dev/null || true
+
+# Restart service if it was already running (for updates)
+if systemctl is-active --quiet vortexl2-tunnel.service 2>/dev/null; then
+    echo -e "${YELLOW}Restarting VortexL2 service...${NC}"
+    systemctl restart vortexl2-tunnel.service
+    echo -e "${GREEN}Service restarted successfully${NC}"
+fi
 
 echo ""
 echo -e "${GREEN}============================================${NC}"

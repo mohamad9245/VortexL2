@@ -66,9 +66,6 @@ def cmd_apply():
         
         # Setup forwards if configured
         if config.forwarded_ports:
-            success, msg = forward.install_template()
-            print(f"Forward template: {msg}")
-            
             success, msg = forward.start_all_forwards()
             print(f"Port forwards: {msg}")
     
@@ -118,7 +115,7 @@ def handle_create_tunnel(manager: ConfigManager):
     ui.show_info(f"Tunnel '{name}' will use interface {config.interface_name}")
     
     # Configure tunnel based on side
-    if not ui.prompt_tunnel_config(config, side):
+    if not ui.prompt_tunnel_config(config, side, manager):
         # User cancelled or error - no config file was created
         ui.show_error("Configuration cancelled.")
         ui.wait_for_enter()

@@ -237,11 +237,16 @@ def prompt_tunnel_side() -> Optional[str]:
         return None
 
 
-def prompt_tunnel_config(config: TunnelConfig, side: str) -> bool:
-    """Prompt user for tunnel configuration based on side."""
+def prompt_tunnel_config(config: TunnelConfig, side: str, manager: ConfigManager = None) -> bool:
+    """Prompt user for tunnel configuration based on side with duplicate validation."""
     console.print(f"\n[bold white]Configure Tunnel: {config.name}[/]")
     console.print(f"[bold]Side: [{'green' if side == 'IRAN' else 'magenta'}]{side}[/][/]")
     console.print("[dim]Enter configuration values. Press Enter to use defaults.[/]\n")
+    
+    # Get used values for duplicate checking (exclude current tunnel if editing)
+    used_values = {}
+    if manager:
+        used_values = manager.get_used_values(exclude_tunnel=config.name)
     
     # Set defaults based on side
     if side == "IRAN":
@@ -286,15 +291,25 @@ def prompt_tunnel_config(config: TunnelConfig, side: str) -> bool:
         return False
     config.remote_ip = remote_ip
     
-    # Interface IP (with validation, auto append /30 subnet)
+    # Interface IP (with validation and duplicate check)
     console.print(f"\n[dim]Configure tunnel interface IP (for {config.interface_name})[/]")
-    interface_ip = prompt_valid_ip(
-        "[bold yellow]Interface IP[/]",
-        default=default_interface_ip,
-        required=True
-    )
-    if not interface_ip:
-        return False
+    while True:
+        interface_ip = prompt_valid_ip(
+            "[bold yellow]Interface IP[/]",
+            default=default_interface_ip,
+            required=True
+        )
+        if not interface_ip:
+            return False
+        
+        # Check for duplicate interface IP
+        interface_ip_only = interface_ip.split('/')[0]
+        if used_values and interface_ip_only in used_values.get("interface_ips", set()):
+            console.print(f"[red]Error: Interface IP {interface_ip_only} is already used by another tunnel![/]")
+            console.print("[dim]Please enter a different IP address.[/]")
+            continue
+        break
+    
     # Auto append /30 if not already present
     if "/" not in interface_ip:
         interface_ip = f"{interface_ip}/30"
@@ -313,36 +328,72 @@ def prompt_tunnel_config(config: TunnelConfig, side: str) -> bool:
     else:
         config.remote_forward_ip = default_remote_forward
     
-    # Tunnel IDs
+    # Tunnel IDs with duplicate validation
     console.print("\n[dim]Configure L2TPv3 tunnel IDs (press Enter to use defaults)[/]")
     
     # Tunnel ID
-    tunnel_id_input = Prompt.ask(
-        "[bold yellow]Tunnel ID[/]",
-        default=str(default_tunnel_id)
-    )
-    config.tunnel_id = int(tunnel_id_input)
+    while True:
+        tunnel_id_input = Prompt.ask(
+            "[bold yellow]Tunnel ID[/]",
+            default=str(default_tunnel_id)
+        )
+        try:
+            tunnel_id = int(tunnel_id_input)
+            if used_values and tunnel_id in used_values.get("tunnel_ids", set()):
+                console.print(f"[red]Error: Tunnel ID {tunnel_id} is already used by another tunnel![/]")
+                continue
+            break
+        except ValueError:
+            console.print("[red]Invalid number, please enter an integer[/]")
+    config.tunnel_id = tunnel_id
     
     # Peer Tunnel ID
-    peer_tunnel_id_input = Prompt.ask(
-        "[bold yellow]Peer Tunnel ID[/]",
-        default=str(default_peer_tunnel_id)
-    )
-    config.peer_tunnel_id = int(peer_tunnel_id_input)
+    while True:
+        peer_tunnel_id_input = Prompt.ask(
+            "[bold yellow]Peer Tunnel ID[/]",
+            default=str(default_peer_tunnel_id)
+        )
+        try:
+            peer_tunnel_id = int(peer_tunnel_id_input)
+            if used_values and peer_tunnel_id in used_values.get("peer_tunnel_ids", set()):
+                console.print(f"[red]Error: Peer Tunnel ID {peer_tunnel_id} is already used by another tunnel![/]")
+                continue
+            break
+        except ValueError:
+            console.print("[red]Invalid number, please enter an integer[/]")
+    config.peer_tunnel_id = peer_tunnel_id
     
     # Session ID
-    session_id_input = Prompt.ask(
-        "[bold yellow]Session ID[/]",
-        default=str(default_session_id)
-    )
-    config.session_id = int(session_id_input)
+    while True:
+        session_id_input = Prompt.ask(
+            "[bold yellow]Session ID[/]",
+            default=str(default_session_id)
+        )
+        try:
+            session_id = int(session_id_input)
+            if used_values and session_id in used_values.get("session_ids", set()):
+                console.print(f"[red]Error: Session ID {session_id} is already used by another tunnel![/]")
+                continue
+            break
+        except ValueError:
+            console.print("[red]Invalid number, please enter an integer[/]")
+    config.session_id = session_id
     
     # Peer Session ID
-    peer_session_id_input = Prompt.ask(
-        "[bold yellow]Peer Session ID[/]",
-        default=str(default_peer_session_id)
-    )
-    config.peer_session_id = int(peer_session_id_input)
+    while True:
+        peer_session_id_input = Prompt.ask(
+            "[bold yellow]Peer Session ID[/]",
+            default=str(default_peer_session_id)
+        )
+        try:
+            peer_session_id = int(peer_session_id_input)
+            if used_values and peer_session_id in used_values.get("peer_session_ids", set()):
+                console.print(f"[red]Error: Peer Session ID {peer_session_id} is already used by another tunnel![/]")
+                continue
+            break
+        except ValueError:
+            console.print("[red]Invalid number, please enter an integer[/]")
+    config.peer_session_id = peer_session_id
     
     console.print("\n[green]✓ Configuration saved![/]")
     return True
