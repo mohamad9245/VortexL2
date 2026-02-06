@@ -539,15 +539,20 @@ def show_forwards_list(forwards: list):
     table.add_column("Sessions", style="white")
     
     for fwd in forwards:
-        # Support both old and new format
-        if "running" in fwd:
-            # New format from forward.py
+        # Check for 'active' key (new format) or 'running' key (old format)
+        if "active" in fwd:
+            is_active = fwd.get("active", False)
+            status = "active" if is_active else "inactive"
+            status_style = "green" if is_active else "red"
+            sessions = str(fwd.get("active_sessions", 0))
+        elif "running" in fwd:
+            # Old format compatibility
             is_running = fwd.get("running", False)
-            status = "running" if is_running else "stopped"
+            status = "active" if is_running else "inactive"
             status_style = "green" if is_running else "red"
             sessions = str(fwd.get("active_sessions", 0))
         else:
-            # Old format (fallback)
+            # Fallback
             status = fwd.get("status", "unknown")
             status_style = "green" if status == "active" else "red"
             sessions = "-"

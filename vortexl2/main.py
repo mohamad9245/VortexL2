@@ -249,19 +249,19 @@ def handle_forwards_menu(manager: ConfigManager):
         if choice == "0":
             break
         elif choice == "1":
-            # Add forwards (to config only)
-            ports = ui.prompt_ports()
-            if ports:
-                # Always use HAProxyManager to add to config (it just updates YAML)
-                from vortexl2.haproxy_manager import HAProxyManager
-                config_manager = HAProxyManager(config)
-                success, msg = config_manager.add_multiple_forwards(ports)
-                ui.show_output(msg, "Add Forwards to Config")
-                if current_mode != "none":
+            # Add forwards - require mode selection first
+            if current_mode == "none":
+                ui.show_error("Please select a port forward mode first! (Option 8)")
+            else:
+                ports = ui.prompt_ports()
+                if ports:
+                    # Always use HAProxyManager to add to config (it just updates YAML)
+                    from vortexl2.haproxy_manager import HAProxyManager
+                    config_manager = HAProxyManager(config)
+                    success, msg = config_manager.add_multiple_forwards(ports)
+                    ui.show_output(msg, "Add Forwards to Config")
                     restart_forward_daemon()
                     ui.show_success("Forwards added. Daemon restarted to apply changes.")
-                else:
-                    ui.show_info("Forwards saved to config. Enable forwarding mode to activate.")
             ui.wait_for_enter()
         elif choice == "2":
             # Remove forwards (from config)
