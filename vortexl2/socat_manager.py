@@ -255,32 +255,53 @@ class SocatManager:
             return False, f"Started {count} forwards, but errors occurred:\n" + "\n".join(errors)
         return True, f"Started {count} socat forwards"
         
+    def _get_running_socat_pids(self) -> List[str]:
+        """Get list of running (non-zombie) socat PIDs."""
+        # ps -eo pid,state,cmd | grep '[s]ocat.*TCP-LISTEN'
+        # State codes: S (sleeping), R (running), Z (zombie), etc.
+        cmd = "ps -eo pid,state,cmd | grep '[s]ocat.*TCP-LISTEN'"
+        success, stdout, _ = run_command(cmd)
+        pids = []
+        if success and stdout:
+            for line in stdout.splitlines():
+                parts = line.split()
+                if len(parts) >= 2:
+                    pid = parts[0]
+                    state = parts[1]
+                    # Ignore zombies
+                    if 'Z' in state:
+                        continue
+                    pids.append(pid)
+        return pids
+
     async def stop_all_forwards(self) -> Tuple[bool, str]:
         """Stop all socat forwards (Async wrapper)."""
-        # Kill all socat processes gracefully first
+        # 1. Kill all socat processes gracefully first
         cmd = "pkill -f 'socat.*TCP-LISTEN'"
         run_command(cmd)
         
-        # Wait for them to exit
+        # 2. Wait for them to exit
         wait_steps = 5
         for _ in range(wait_steps):
             import time
             time.sleep(0.2)
-            success, stdout, _ = run_command("pgrep -f 'socat.*TCP-LISTEN'")
-            if not (success and stdout.strip()):
+            running_pids = self._get_running_socat_pids()
+            if not running_pids:
                 return True, "All socat forwards stopped"
         
-        # Force kill if still running
-        cmd_force = "pkill -9 -f 'socat.*TCP-LISTEN'"
-        run_command(cmd_force)
-        
-        import time
-        time.sleep(0.5)
-        
-        # Final Verification
-        success, stdout, _ = run_command("pgrep -f 'socat.*TCP-LISTEN'")
-        if success and stdout.strip():
-             return False, "Some socat processes failed to stop even after SIGKILL"
+        # 3. Force kill specific PIDs if still running (avoiding pkill -9 matching too broadly)
+        running_pids = self._get_running_socat_pids()
+        if running_pids:
+            pids_str = " ".join(running_pids)
+            run_command(f"kill -9 {pids_str}")
+            
+            import time
+            time.sleep(0.5)
+            
+            # 4. Final Verification
+            final_pids = self._get_running_socat_pids()
+            if final_pids:
+                 return False, f"Some socat processes failed to stop (PIDs: {final_pids})"
              
         return True, "All socat forwards stopped (forced)"
 
