@@ -24,7 +24,7 @@ SYSTEMD_DIR="/etc/systemd/system"
 CONFIG_DIR="/etc/vortexl2"
 GITHUB_REPO="iliya-Developer/VortexL2"
 REPO_URL="https://github.com/${GITHUB_REPO}.git"
-REPO_BRANCH="main"
+REPO_BRANCH="dev"
 
 # Get version from argument (if provided)
 VERSION="${1:-}"
