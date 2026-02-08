@@ -126,9 +126,9 @@ if [ -n "$VERSION" ]; then
         if [ "$TUNNEL_MODE" = "easytier" ] && ! version_supports_easytier "$VERSION"; then
             echo -e "${RED}✗ Error: Version ${VERSION} does not support EasyTier!${NC}"
             echo -e "${YELLOW}EasyTier requires v4.0.0 or higher.${NC}"
-            echo -e "${YELLOW}Installing from main branch instead...${NC}"
+            echo -e "${YELLOW}Installing from ${REPO_BRANCH} branch instead...${NC}"
             DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/archive/refs/heads/${REPO_BRANCH}.tar.gz"
-            INSTALL_VERSION="main (EasyTier)"
+            INSTALL_VERSION="${REPO_BRANCH} (EasyTier)"
         else
             echo -e "${GREEN}✓ Version ${VERSION} found!${NC}"
             DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/archive/refs/tags/${VERSION}.tar.gz"
@@ -151,9 +151,9 @@ else
             INSTALL_VERSION="$LATEST_VERSION"
         else
             echo -e "${YELLOW}Latest release (${LATEST_VERSION:-none}) does not support EasyTier.${NC}"
-            echo -e "${YELLOW}Installing from main branch (v4.0.0+)...${NC}"
+            echo -e "${YELLOW}Installing from ${REPO_BRANCH} branch (v4.0.0+)...${NC}"
             DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/archive/refs/heads/${REPO_BRANCH}.tar.gz"
-            INSTALL_VERSION="main (EasyTier)"
+            INSTALL_VERSION="${REPO_BRANCH} (EasyTier)"
         fi
     else
         if [ -n "$LATEST_VERSION" ]; then
@@ -161,9 +161,9 @@ else
             DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/archive/refs/tags/${LATEST_VERSION}.tar.gz"
             INSTALL_VERSION="$LATEST_VERSION"
         else
-            echo -e "${YELLOW}No releases found. Installing from main branch...${NC}"
+            echo -e "${YELLOW}No releases found. Installing from ${REPO_BRANCH} branch...${NC}"
             DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/archive/refs/heads/${REPO_BRANCH}.tar.gz"
-            INSTALL_VERSION="main"
+            INSTALL_VERSION="${REPO_BRANCH}"
         fi
     fi
 fi
