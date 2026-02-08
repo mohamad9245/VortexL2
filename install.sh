@@ -359,7 +359,7 @@ if [ "$TUNNEL_MODE" = "l2tpv3" ]; then
 fi
 systemctl enable vortexl2-forward-daemon.service 2>/dev/null || true
 
-# Start services if L2TPv3
+# Start services
 echo -e "${YELLOW}Starting VortexL2 services...${NC}"
 
 if [ "$TUNNEL_MODE" = "l2tpv3" ]; then
@@ -370,6 +370,16 @@ if [ "$TUNNEL_MODE" = "l2tpv3" ]; then
         systemctl start vortexl2-tunnel.service 2>/dev/null || true
         echo -e "${GREEN}  ✓ vortexl2-tunnel service started${NC}"
     fi
+elif [ "$TUNNEL_MODE" = "easytier" ]; then
+    # Restart all EasyTier tunnel services that were previously configured
+    for service in /etc/systemd/system/vortexl2-easytier-*.service; do
+        if [ -f "$service" ]; then
+            svc_name=$(basename "$service")
+            echo -e "${YELLOW}  Restarting ${svc_name}...${NC}"
+            systemctl restart "$svc_name" 2>/dev/null || true
+            echo -e "${GREEN}  ✓ ${svc_name} restarted${NC}"
+        fi
+    done
 fi
 
 echo -e "${YELLOW}  ℹ Port forwarding is DISABLED by default${NC}"
