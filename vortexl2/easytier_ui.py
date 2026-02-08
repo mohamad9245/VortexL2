@@ -136,8 +136,8 @@ def show_easytier_tunnel_list(manager: EasyTierConfigManager):
 def prompt_easytier_side() -> Optional[str]:
     """Prompt for EasyTier tunnel side."""
     console.print("\n[bold white]Select Server Role:[/]")
-    console.print("  [bold cyan][1][/] [green]IRAN[/] - Main server (clients connect to this)")
-    console.print("  [bold cyan][2][/] [magenta]KHAREJ[/] - Remote server (connects to IRAN)")
+    console.print("  [bold cyan][1][/] [green]IRAN[/]")
+    console.print("  [bold cyan][2][/] [magenta]KHAREJ[/]")
     console.print("  [bold cyan][0][/] Cancel")
     
     choice = Prompt.ask("\n[bold cyan]Select role[/]", default="1")
