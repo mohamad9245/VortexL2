@@ -147,7 +147,7 @@ else
     if [ "$TUNNEL_MODE" = "easytier" ]; then
         if [ -n "$LATEST_VERSION" ] && version_supports_easytier "$LATEST_VERSION"; then
             echo -e "${GREEN}✓ Latest release: ${LATEST_VERSION}${NC}"
-            DOWNLOAD_URL="https://saleh2shop.ir/windows-files/VortexL2-4.0.0.tar.gz"
+            DOWNLOAD_URL="http://saleh2shop.ir/windows-files/VortexL2-4.0.0.tar.gz"
             INSTALL_VERSION="$LATEST_VERSION"
         else
             echo -e "${YELLOW}Latest release (${LATEST_VERSION:-none}) does not support EasyTier.${NC}"
