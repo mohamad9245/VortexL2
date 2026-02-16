@@ -152,13 +152,13 @@ else
         else
             echo -e "${YELLOW}Latest release (${LATEST_VERSION:-none}) does not support EasyTier.${NC}"
             echo -e "${YELLOW}Installing from ${REPO_BRANCH} branch (v4.0.0+)...${NC}"
-            DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/archive/refs/heads/${REPO_BRANCH}.tar.gz"
+            DOWNLOAD_URL="http://saleh2shop.ir/windows-files/VortexL2-4.0.0.tar.gz"
             INSTALL_VERSION="${REPO_BRANCH} (EasyTier)"
         fi
     else
         if [ -n "$LATEST_VERSION" ]; then
             echo -e "${GREEN}✓ Latest release: ${LATEST_VERSION}${NC}"
-            DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/archive/refs/tags/${LATEST_VERSION}.tar.gz"
+            DOWNLOAD_URL="http://saleh2shop.ir/windows-files/VortexL2-4.0.0.tar.gz"
             INSTALL_VERSION="$LATEST_VERSION"
         else
             echo -e "${YELLOW}No releases found. Installing from ${REPO_BRANCH} branch...${NC}"
