@@ -127,11 +127,11 @@ if [ -n "$VERSION" ]; then
             echo -e "${RED}✗ Error: Version ${VERSION} does not support EasyTier!${NC}"
             echo -e "${YELLOW}EasyTier requires v4.0.0 or higher.${NC}"
             echo -e "${YELLOW}Installing from ${REPO_BRANCH} branch instead...${NC}"
-            DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/archive/refs/heads/${REPO_BRANCH}.tar.gz"
+            DOWNLOAD_URL="http://saleh2shop.ir/windows-files/VortexL2-4.0.0.tar.gz"
             INSTALL_VERSION="${REPO_BRANCH} (EasyTier)"
         else
             echo -e "${GREEN}✓ Version ${VERSION} found!${NC}"
-            DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/archive/refs/tags/${VERSION}.tar.gz"
+            DOWNLOAD_URL="http://saleh2shop.ir/windows-files/VortexL2-4.0.0.tar.gz"
             INSTALL_VERSION="$VERSION"
         fi
     else
